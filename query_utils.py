@@ -5,12 +5,22 @@ from langchain_anthropic import ChatAnthropic
 from langchain_openai import OpenAIEmbeddings
 from dotenv import load_dotenv
 
+from openai import OpenAI
+from dotenv import load_dotenv
+from embed_utils import generate_embeddings
+
 load_dotenv()
 
-EMBEDDING_DIM = 1536  # Anthropic embedding size
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def get_embedding_model():
-    return OpenAIEmbeddings(model="text-embedding-3-large")
+# Use OpenAI Python SDK for embedding generation
+
+def generate_embeddings(chunks: List[str]) -> List[List[float]]:
+    response = client.embeddings.create(
+        input=chunks,
+        model="text-embedding-3-small"
+    )
+    return [item.embedding for item in response.data]
 
 def get_db_connection():
     return psycopg2.connect(
@@ -23,9 +33,8 @@ def get_db_connection():
 
 def get_top_k_chunks(query: str, k: int = 5) -> List[Tuple[str, float]]:
     """Retrieve top-k most relevant chunks for the query."""
-    embedder = get_embedding_model()
-    query_emb = embedder.embed_query(query)
-    # Format as pgvector literal: '[0.1,0.2,...]'
+    # Use OpenAI SDK embedding from embed_utils
+    query_emb = generate_embeddings([query])[0]
     vector_str = '[' + ','.join(str(x) for x in query_emb) + ']'
     conn = get_db_connection()
     cur = conn.cursor()
