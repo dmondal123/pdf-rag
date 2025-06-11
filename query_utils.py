@@ -49,11 +49,14 @@ def get_top_k_chunks(query: str, k: int = 5) -> List[Tuple[str, float]]:
     conn.close()
     return [(row[0], row[1]) for row in results]
 
-def generate_answer(query: str, context_chunks: List[str]) -> str:
-    """Generate an answer using Anthropic Claude Sonnet with context."""
+def generate_answer(query: str, context_chunks: List[str], history_text: str = "") -> str:
+    """Generate an answer using Anthropic Claude Sonnet with context and conversation history."""
     context = "\n\n".join(context_chunks)
     prompt = f"""
-You are an expert assistant. Use the following context to answer the user's question. If the answer is not in the context, say you don't know.
+You are an expert assistant. Use the following context and conversation history to answer the user's question. If the answer is not in the context, say you don't know.
+
+Conversation history:
+{history_text}
 
 Context:
 {context}

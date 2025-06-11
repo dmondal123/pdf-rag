@@ -1,5 +1,7 @@
 import click
 
+conversation_history = []
+
 @click.group()
 def cli():
     """PDF RAG CLI: Upload PDFs and query their content."""
@@ -24,15 +26,25 @@ def upload(pdf_path):
     click.echo("Upload complete.")
 
 @cli.command()
-@click.argument('query', type=str)
-def ask(query):
-    """Query the knowledge base using agentic reasoning."""
+def ask():
+    """Enter interactive Q&A mode with conversational memory."""
     from query_utils import get_top_k_chunks, generate_answer
-    click.echo(f"Querying: {query}")
-    top_chunks = get_top_k_chunks(query, k=5)
-    context_chunks = [chunk for chunk, _ in top_chunks]
-    answer = generate_answer(query, context_chunks)
-    click.echo("\nAnswer:\n" + answer)
+    global conversation_history
+    click.echo("Entering interactive Q&A mode. Type 'exit' or 'quit' to leave.")
+    while True:
+        query = input("\nYour question: ").strip()
+        if query.lower() in {"exit", "quit"}:
+            click.echo("Exiting Q&A mode.")
+            break
+        click.echo(f"Querying: {query}")
+        top_chunks = get_top_k_chunks(query, k=5)
+        context_chunks = [chunk for chunk, _ in top_chunks]
+        history_text = ""
+        for q, a in conversation_history:
+            history_text += f"Q: {q}\nA: {a}\n"
+        answer = generate_answer(query, context_chunks, history_text)
+        click.echo("\nAnswer:\n" + answer)
+        conversation_history.append((query, answer))
 
 if __name__ == "__main__":
     cli() 
