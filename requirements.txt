@@ -1,0 +1,9 @@
+pypdf2
+langchain
+langchain-community
+langchain-anthropic
+psycopg2-binary
+pgvector
+click
+tqdm
+python-dotenv 
