@@ -2,12 +2,14 @@ import os
 from typing import List, Tuple
 import psycopg2
 from langchain_anthropic import ChatAnthropic
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from dotenv import load_dotenv
+from retriever import get_compression_retriever
 
 from openai import OpenAI
 from dotenv import load_dotenv
 from embed_utils import generate_embeddings
+from rerank_utils import rerank_documents
 
 load_dotenv()
 
@@ -32,22 +34,15 @@ def get_db_connection():
     )
 
 def get_top_k_chunks(query: str, k: int = 5) -> List[Tuple[str, float]]:
-    """Retrieve top-k most relevant chunks for the query."""
-    # Use OpenAI SDK embedding from embed_utils
-    query_emb = generate_embeddings([query])[0]
-    vector_str = '[' + ','.join(str(x) for x in query_emb) + ']'
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(f'''
-        SELECT chunk, embedding <#> %s::vector AS distance
-        FROM documents
-        ORDER BY distance ASC
-        LIMIT %s;
-    ''', (vector_str, k))
-    results = cur.fetchall()
-    cur.close()
-    conn.close()
-    return [(row[0], row[1]) for row in results]
+    """Get top k most relevant chunks using vector similarity and reranking."""
+    # Get compression retriever
+    compression_retriever = get_compression_retriever(k=k)
+    
+    # Get reranked documents
+    docs = compression_retriever.invoke(query)
+    
+    # Convert to expected format
+    return [(doc.page_content, doc.metadata.get("distance", 0.0)) for doc in docs]
 
 def generate_answer(query: str, context_chunks: List[str], history_text: str = "") -> str:
     """Generate an answer using Anthropic Claude Sonnet with context and conversation history."""
@@ -64,6 +59,9 @@ Context:
 Question: {query}
 Answer:
 """
-    llm = ChatAnthropic(model="claude-3-7-sonnet-20250219", anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"))
+    llm = ChatOpenAI(
+        model="claude-3-7-sonnet-20250219",
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
+    )
     response = llm.invoke(prompt)
     return response.content.strip() if hasattr(response, 'content') else str(response) 
