@@ -1,17 +1,17 @@
 from typing import List, Dict, Any
 import psycopg2
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import FlashrankRerank
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_openai import OpenAIEmbeddings
 import os
 from dotenv import load_dotenv
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 load_dotenv()
 
 class PGVectorRetriever(BaseRetriever):
-    """Custom retriever that uses pgvector for similarity search."""
+    """Custom retriever that uses pgvector for similarity search with embedding-based reranking."""
     
     def __init__(self, k: int = 5):
         self.k = k
@@ -36,10 +36,11 @@ class PGVectorRetriever(BaseRetriever):
         # Convert embedding to string format for pgvector
         vector_str = str(query_embedding).replace('[', '{').replace(']', '}')
         
-        # Get results using vector similarity
+        # Get initial results using vector similarity
         conn = self.get_db_connection()
         cur = conn.cursor()
         
+        # Get more results than needed for reranking
         cur.execute(f'''
             SELECT id, chunk, embedding <#> %s::vector AS distance
             FROM documents
@@ -60,14 +61,20 @@ class PGVectorRetriever(BaseRetriever):
             for doc_id, chunk, distance in results
         ]
         
-        return documents
+        # Rerank using cosine similarity with query embedding
+        doc_embeddings = self.embeddings.embed_documents([doc.page_content for doc in documents])
+        similarities = cosine_similarity([query_embedding], doc_embeddings)[0]
+        
+        # Add similarity scores to metadata
+        for doc, similarity in zip(documents, similarities):
+            doc.metadata["similarity"] = float(similarity)
+        
+        # Sort by similarity score
+        reranked_docs = sorted(documents, key=lambda x: x.metadata["similarity"], reverse=True)
+        
+        # Return top k documents
+        return reranked_docs[:self.k]
 
-def get_compression_retriever(k: int = 5) -> ContextualCompressionRetriever:
-    """Create a compression retriever with FlashRank reranking."""
-    base_retriever = PGVectorRetriever(k=k)
-    compressor = FlashrankRerank()
-    
-    return ContextualCompressionRetriever(
-        base_compressor=compressor,
-        base_retriever=base_retriever
-    ) 
+def get_retriever(k: int = 5) -> PGVectorRetriever:
+    """Create a retriever with embedding-based reranking."""
+    return PGVectorRetriever(k=k) 

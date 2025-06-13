@@ -4,7 +4,7 @@ import psycopg2
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from dotenv import load_dotenv
-from retriever import get_compression_retriever
+from retriever import get_retriever
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -34,15 +34,15 @@ def get_db_connection():
     )
 
 def get_top_k_chunks(query: str, k: int = 5) -> List[Tuple[str, float]]:
-    """Get top k most relevant chunks using vector similarity and reranking."""
-    # Get compression retriever
-    compression_retriever = get_compression_retriever(k=k)
+    """Get top k most relevant chunks using vector similarity and embedding-based reranking."""
+    # Get retriever
+    retriever = get_retriever(k=k)
     
     # Get reranked documents
-    docs = compression_retriever.invoke(query)
+    docs = retriever.invoke(query)
     
     # Convert to expected format
-    return [(doc.page_content, doc.metadata.get("distance", 0.0)) for doc in docs]
+    return [(doc.page_content, doc.metadata.get("similarity", 0.0)) for doc in docs]
 
 def generate_answer(query: str, context_chunks: List[str], history_text: str = "") -> str:
     """Generate an answer using Anthropic Claude Sonnet with context and conversation history."""
