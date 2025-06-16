@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import psycopg2
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -33,16 +33,30 @@ def get_db_connection():
         dbname=os.getenv("PGDATABASE", "pdfrag")
     )
 
-def get_top_k_chunks(query: str, k: int = 5) -> List[Tuple[str, float]]:
-    """Get top k most relevant chunks using vector similarity and embedding-based reranking."""
+def get_top_k_chunks(query: str, k: int = 5) -> List[Tuple[str, Dict[str, float]]]:
+    """
+    Get top k most relevant chunks using custom reranking.
+    Returns chunks with their detailed scoring information.
+    """
     # Get retriever
     retriever = get_retriever(k=k)
     
     # Get reranked documents
     docs = retriever.invoke(query)
     
-    # Convert to expected format
-    return [(doc.page_content, doc.metadata.get("similarity", 0.0)) for doc in docs]
+    # Convert to expected format with detailed scoring
+    return [
+        (
+            doc.page_content,
+            {
+                "cosine_similarity": doc.metadata.get("cosine_similarity", 0.0),
+                "word_overlap": doc.metadata.get("word_overlap", 0.0),
+                "keyword_density": doc.metadata.get("keyword_density", 0.0),
+                "combined_score": doc.metadata.get("combined_score", 0.0)
+            }
+        )
+        for doc in docs
+    ]
 
 def generate_answer(query: str, context_chunks: List[str], history_text: str = "") -> str:
     """Generate an answer using Anthropic Claude Sonnet with context and conversation history."""
