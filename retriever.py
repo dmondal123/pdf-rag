@@ -7,11 +7,95 @@ import os
 from dotenv import load_dotenv
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+import re
+from collections import Counter
 
 load_dotenv()
 
+class CustomReranker:
+    """A simple custom reranker that combines multiple similarity metrics."""
+    
+    def __init__(self):
+        self.embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            openai_api_key=os.getenv("OPENAI_API_KEY")
+        )
+    
+    def _preprocess_text(self, text: str) -> str:
+        """Basic text preprocessing."""
+        # Convert to lowercase
+        text = text.lower()
+        # Remove special characters
+        text = re.sub(r'[^\w\s]', ' ', text)
+        # Remove extra whitespace
+        text = ' '.join(text.split())
+        return text
+    
+    def _get_word_overlap(self, query: str, doc: str) -> float:
+        """Calculate word overlap similarity."""
+        query_words = set(self._preprocess_text(query).split())
+        doc_words = set(self._preprocess_text(doc).split())
+        
+        if not query_words or not doc_words:
+            return 0.0
+            
+        intersection = len(query_words.intersection(doc_words))
+        union = len(query_words.union(doc_words))
+        return intersection / union if union > 0 else 0.0
+    
+    def _get_keyword_density(self, query: str, doc: str) -> float:
+        """Calculate keyword density score."""
+        query_words = self._preprocess_text(query).split()
+        doc_words = self._preprocess_text(doc).split()
+        
+        if not query_words or not doc_words:
+            return 0.0
+            
+        # Count occurrences of query words in document
+        doc_counter = Counter(doc_words)
+        total_matches = sum(doc_counter[word] for word in query_words)
+        
+        # Normalize by document length
+        return total_matches / len(doc_words)
+    
+    def rerank(self, query: str, documents: List[Document], top_k: int = 5) -> List[Document]:
+        """Rerank documents using multiple similarity metrics."""
+        # Get embeddings for query and documents
+        query_embedding = self.embeddings.embed_query(query)
+        doc_embeddings = self.embeddings.embed_documents([doc.page_content for doc in documents])
+        
+        # Calculate different similarity scores
+        for i, doc in enumerate(documents):
+            # Cosine similarity
+            cosine_sim = cosine_similarity([query_embedding], [doc_embeddings[i]])[0][0]
+            
+            # Word overlap
+            word_overlap = self._get_word_overlap(query, doc.page_content)
+            
+            # Keyword density
+            keyword_density = self._get_keyword_density(query, doc.page_content)
+            
+            # Combine scores (you can adjust weights)
+            combined_score = (
+                0.5 * cosine_sim +  # Semantic similarity
+                0.3 * word_overlap +  # Exact word matches
+                0.2 * keyword_density  # Keyword importance
+            )
+            
+            # Store all scores in metadata
+            doc.metadata.update({
+                "cosine_similarity": float(cosine_sim),
+                "word_overlap": float(word_overlap),
+                "keyword_density": float(keyword_density),
+                "combined_score": float(combined_score)
+            })
+        
+        # Sort by combined score
+        reranked_docs = sorted(documents, key=lambda x: x.metadata["combined_score"], reverse=True)
+        return reranked_docs[:top_k]
+
 class PGVectorRetriever(BaseRetriever):
-    """Custom retriever that uses pgvector for similarity search with embedding-based reranking."""
+    """Custom retriever that uses pgvector for similarity search with custom reranking."""
     
     def __init__(self, k: int = 5):
         self.k = k
@@ -19,6 +103,7 @@ class PGVectorRetriever(BaseRetriever):
             model="text-embedding-3-small",
             openai_api_key=os.getenv("OPENAI_API_KEY")
         )
+        self.reranker = CustomReranker()
         
     def get_db_connection(self):
         return psycopg2.connect(
@@ -61,20 +146,11 @@ class PGVectorRetriever(BaseRetriever):
             for doc_id, chunk, distance in results
         ]
         
-        # Rerank using cosine similarity with query embedding
-        doc_embeddings = self.embeddings.embed_documents([doc.page_content for doc in documents])
-        similarities = cosine_similarity([query_embedding], doc_embeddings)[0]
+        # Rerank using custom reranker
+        reranked_docs = self.reranker.rerank(query, documents, top_k=self.k)
         
-        # Add similarity scores to metadata
-        for doc, similarity in zip(documents, similarities):
-            doc.metadata["similarity"] = float(similarity)
-        
-        # Sort by similarity score
-        reranked_docs = sorted(documents, key=lambda x: x.metadata["similarity"], reverse=True)
-        
-        # Return top k documents
-        return reranked_docs[:self.k]
+        return reranked_docs
 
 def get_retriever(k: int = 5) -> PGVectorRetriever:
-    """Create a retriever with embedding-based reranking."""
+    """Create a retriever with custom reranking."""
     return PGVectorRetriever(k=k) 
