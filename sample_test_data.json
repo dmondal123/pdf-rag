@@ -1,0 +1,43 @@
+{
+  "queries": [
+    "What are the main features of the system?",
+    "How does the authentication process work?",
+    "What are the system requirements?",
+    "How to configure the database?",
+    "What are the security measures?"
+  ],
+  "reference_answers": [
+    "The system includes user management, data processing, and reporting features. It supports real-time analytics and automated workflows.",
+    "The authentication process uses OAuth 2.0 with JWT tokens. Users must provide valid credentials and complete two-factor authentication.",
+    "The system requires Python 3.8+, PostgreSQL 12+, and at least 4GB RAM. It also needs network connectivity for external APIs.",
+    "Database configuration involves setting up connection parameters, creating tables, and configuring backup schedules.",
+    "Security measures include encryption at rest, SSL/TLS for data in transit, role-based access control, and regular security audits."
+  ],
+  "relevant_docs": [
+    [
+      "The system includes user management, data processing, and reporting features.",
+      "It supports real-time analytics and automated workflows.",
+      "Key features include dashboard customization and export capabilities."
+    ],
+    [
+      "The authentication process uses OAuth 2.0 with JWT tokens.",
+      "Users must provide valid credentials and complete two-factor authentication.",
+      "Session management includes automatic timeout and refresh mechanisms."
+    ],
+    [
+      "The system requires Python 3.8+, PostgreSQL 12+, and at least 4GB RAM.",
+      "It also needs network connectivity for external APIs.",
+      "Additional requirements include Docker and Kubernetes for deployment."
+    ],
+    [
+      "Database configuration involves setting up connection parameters.",
+      "Creating tables and configuring backup schedules is essential.",
+      "Performance tuning includes index optimization and query caching."
+    ],
+    [
+      "Security measures include encryption at rest and SSL/TLS for data in transit.",
+      "Role-based access control and regular security audits are implemented.",
+      "Additional security features include intrusion detection and logging."
+    ]
+  ]
+} 

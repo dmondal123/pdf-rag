@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Dict, Any
 import psycopg2
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -26,26 +26,37 @@ def get_db_connection():
         dbname=os.getenv("PGDATABASE", "pdfrag")
     )
 
-def upsert_chunks_with_embeddings(chunks: List[str], embeddings: List[List[float]], source: str):
+def upsert_chunks_with_embeddings(chunks: List[Dict[str, Any]], embeddings: List[List[float]], source: str):
     conn = get_db_connection()
     cur = conn.cursor()
-    # Ensure table exists (update dimension to 1536 for text-embedding-3-small)
+    
+    # Create tables for different content types
     cur.execute('''
         CREATE TABLE IF NOT EXISTS documents (
             id SERIAL PRIMARY KEY,
             source TEXT,
-            chunk TEXT,
-            embedding VECTOR(1536)
+            content_type TEXT,
+            content TEXT,
+            embedding VECTOR(1536),
+            metadata JSONB
         );
     ''')
+    
     for chunk, emb in zip(chunks, embeddings):
         cur.execute(
             """
-            INSERT INTO documents (source, chunk, embedding)
-            VALUES (%s, %s, %s)
+            INSERT INTO documents (source, content_type, content, embedding, metadata)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (source, chunk, emb)
+            (
+                source,
+                chunk['type'],
+                chunk['content'],
+                emb,
+                chunk.get('metadata', {})
+            )
         )
+    
     conn.commit()
     cur.close()
     conn.close() 

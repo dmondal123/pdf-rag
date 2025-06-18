@@ -1,0 +1,14 @@
+{
+  "queries": [
+    "What are the main features of the system?",
+    "How does the authentication process work?",
+    "What are the system requirements?",
+    "How to configure the database?",
+    "What are the security measures?",
+    "What is the deployment process?",
+    "How to troubleshoot common issues?",
+    "What are the performance benchmarks?",
+    "How to scale the system?",
+    "What are the API endpoints?"
+  ]
+} 

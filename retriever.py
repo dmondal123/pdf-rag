@@ -98,6 +98,7 @@ class PGVectorRetriever(BaseRetriever):
     """Custom retriever that uses pgvector for similarity search with custom reranking."""
     
     def __init__(self, k: int = 5):
+        super().__init__()  # Call parent class initializer
         self.k = k
         self.embeddings = OpenAIEmbeddings(
             model="text-embedding-3-small",
