@@ -1,6 +1,5 @@
 import click
 from typing import List, Tuple, Dict
-from multimodal_utils import MultimodalProcessor, chunk_multimodal_content
 from evaluation_utils import RAGEvaluator
 from self_evaluation_utils import SelfRAGEvaluator
 
@@ -14,7 +13,6 @@ def cli():
 @cli.command()
 @click.argument('pdf_path', type=click.Path(exists=True))
 def upload(pdf_path):
-    """Upload a PDF, extract, chunk, embed, and store in DB."""
     from pdf_utils import extract_text_from_pdf, chunk_text
     from embed_utils import generate_embeddings, upsert_chunks_with_embeddings
     from tqdm import tqdm
@@ -22,22 +20,18 @@ def upload(pdf_path):
     
     click.echo(f"Uploading and processing: {pdf_path}")
     
-    # Process multimodal content
-    processor = MultimodalProcessor()
-    multimodal_content = processor.process_pdf(pdf_path)
-    
-    # Add regular text content
+    # Extract text from PDF
     text = extract_text_from_pdf(pdf_path)
     text_chunks = chunk_text(text)
-    for chunk in text_chunks:
-        multimodal_content.append({
+    
+    # Convert chunks to the expected format for embed_utils
+    chunked_content = []
+    for i, chunk in enumerate(text_chunks):
+        chunked_content.append({
             'type': 'text',
             'content': chunk,
-            'metadata': {'content_type': 'text'}
+            'metadata': {'content_type': 'text', 'chunk_id': i}
         })
-    
-    # Chunk the content while preserving structure
-    chunked_content = chunk_multimodal_content(multimodal_content)
     
     click.echo(f"Extracted {len(chunked_content)} chunks from PDF.")
     click.echo("Generating embeddings...")
@@ -69,7 +63,6 @@ def ask():
         click.echo("\nRetrieved chunks with scores:")
         for i, (chunk, scores) in enumerate(results, 1):
             click.echo(f"\nChunk {i}:")
-            click.echo(f"Content Type: {chunk.get('type', 'text')}")
             click.echo(f"Cosine Similarity: {scores['cosine_similarity']:.3f}")
             click.echo(f"Word Overlap: {scores['word_overlap']:.3f}")
             click.echo(f"Keyword Density: {scores['keyword_density']:.3f}")

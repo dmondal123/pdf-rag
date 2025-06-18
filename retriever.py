@@ -128,7 +128,7 @@ class PGVectorRetriever(BaseRetriever):
         
         # Get more results than needed for reranking
         cur.execute(f'''
-            SELECT id, chunk, embedding <#> %s::vector AS distance
+            SELECT id, content, embedding <#> %s::vector AS distance
             FROM documents
             ORDER BY distance ASC
             LIMIT %s;
@@ -141,10 +141,10 @@ class PGVectorRetriever(BaseRetriever):
         # Convert to LangChain Documents
         documents = [
             Document(
-                page_content=chunk,
+                page_content=content,
                 metadata={"id": doc_id, "distance": distance}
             )
-            for doc_id, chunk, distance in results
+            for doc_id, content, distance in results
         ]
         
         # Rerank using custom reranker
